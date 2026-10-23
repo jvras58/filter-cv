@@ -32,8 +32,10 @@ poetry run python main.py
 | Tecla | Ação |
 |-------|------|
 | `1` | Filtro normal |
-| `2` | Meme (fade) — `S` some, `A` volta |
 | `3` | AR (óculos) |
+| ✌️ (gesto) | Ação **peace out** — some no fundo congelado |
+| Mão aberta | Volta a aparecer |
+| `A` | Voltar (atalho de teclado) |
 | `Q` | Sair |
 
 Na inicialização, saia do quadro por ~2s para capturar o fundo do filtro meme.
@@ -51,7 +53,9 @@ config/
   settings.py
 filters/
   registry.py
+  actions/disappear_fade.py
   …
+core/peace_sign_detector.py
 utils/
 assets/
 ```

@@ -12,13 +12,25 @@ FACE_LANDMARKER_URL = (
     "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
 )
 FACE_LANDMARKER_PATH = DEFAULT_ASSETS_DIR / "models" / "face_landmarker.task"
+HAND_LANDMARKER_URL = (
+    "https://storage.googleapis.com/mediapipe-models/"
+    "hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+)
+HAND_LANDMARKER_PATH = DEFAULT_ASSETS_DIR / "models" / "hand_landmarker.task"
+
+
+def _ensure_model(url: str, path: Path, label: str) -> Path:
+    if path.is_file():
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"[VSE] Baixando modelo {label} em {path} ...")
+    urllib.request.urlretrieve(url, path)
+    return path
 
 
 def ensure_face_landmarker_model(path: Path = FACE_LANDMARKER_PATH) -> Path:
-    if path.is_file():
-        return path
+    return _ensure_model(FACE_LANDMARKER_URL, path, "Face Landmarker")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    print(f"[VSE] Baixando modelo Face Landmarker em {path} ...")
-    urllib.request.urlretrieve(FACE_LANDMARKER_URL, path)
-    return path
+
+def ensure_hand_landmarker_model(path: Path = HAND_LANDMARKER_PATH) -> Path:
+    return _ensure_model(HAND_LANDMARKER_URL, path, "Hand Landmarker")

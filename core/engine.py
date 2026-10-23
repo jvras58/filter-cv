@@ -6,8 +6,17 @@ import cv2
 
 from config.settings import DEFAULT_STREAM_CONFIG, StreamConfig
 from core.camera_stream import CameraStream
-from core.keys import FILTER_HOTKEYS, KEY_QUIT, KEY_QUIT_UPPER, PREVIEW_WINDOW_NAME
+from core.keys import (
+    FILTER_HOTKEYS,
+    KEY_FADE_IN,
+    KEY_FADE_IN_UPPER,
+    KEY_QUIT,
+    KEY_QUIT_UPPER,
+    PREVIEW_WINDOW_NAME,
+)
+from core.peace_sign_detector import PeaceSignDetector
 from core.virtual_cam_output import VirtualCamOutput
+from filters.actions.disappear_fade import DisappearFadeAction
 from filters.base_filter import VideoFilter
 from filters.registry import FilterFactoryContext, build_filters
 
@@ -24,10 +33,12 @@ class VirtualStreamEngine:
         background = self._input.capture_static_background(
             self._config.background_capture_seconds
         )
-        ctx = FilterFactoryContext(background_frame=background, config=self._config)
+        ctx = FilterFactoryContext(config=self._config)
         self._filters: dict[str, VideoFilter] = build_filters(ctx)
         self._active_filter: VideoFilter = self._filters["normal"]
         self._active_name = "normal"
+        self._disappear = DisappearFadeAction(background)
+        self._gestures = PeaceSignDetector(fps=self._config.fps)
         self._output = VirtualCamOutput(
             self._config.width,
             self._config.height,
@@ -46,16 +57,29 @@ class VirtualStreamEngine:
             self._active_name = filter_name
             print(f"[VSE] Filtro ativo: {filter_name}")
 
+        if key in (KEY_FADE_IN, KEY_FADE_IN_UPPER):
+            self._disappear.start_fade_in()
+
         return True
 
     def run(self) -> None:
-        print("[VSE] Teclas: 1=normal | 2=meme (S/A fade) | 3=AR | Q=sair\n")
+        print(
+            "[VSE] 1=normal | 3=AR | ✌️=sumir | mão aberta=voltar | A=volta (teclado) | Q=sair\n"
+        )
 
         try:
             while self._running:
                 frame = self._input.read_frame()
                 if frame is None:
                     continue
+
+                fade_out, fade_in = self._gestures.update(frame)
+                if fade_out:
+                    print("[VSE] Ação: peace out — sumindo...")
+                    self._disappear.start_fade_out()
+                if fade_in:
+                    print("[VSE] Ação: mão aberta — voltando...")
+                    self._disappear.start_fade_in()
 
                 key = cv2.waitKey(1) & 0xFF
                 if key not in (0, 255):
@@ -65,6 +89,7 @@ class VirtualStreamEngine:
                         self._active_filter.handle_input(key)
 
                 frame_out = self._active_filter.apply(frame)
+                frame_out = self._disappear.apply(frame_out)
                 self._output.send(frame_out)
 
                 if self._config.preview_window:
@@ -79,6 +104,17 @@ class VirtualStreamEngine:
                         2,
                         cv2.LINE_AA,
                     )
+                    if self._disappear.is_active:
+                        cv2.putText(
+                            preview,
+                            "acao: fade",
+                            (16, 80),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.8,
+                            (0, 200, 255),
+                            2,
+                            cv2.LINE_AA,
+                        )
                     cv2.imshow(PREVIEW_WINDOW_NAME, preview)
         finally:
             self.shutdown()
@@ -87,6 +123,7 @@ class VirtualStreamEngine:
         if self._shutdown_done:
             return
         self._shutdown_done = True
+        self._gestures.close()
         for filt in self._filters.values():
             filt.close()
         self._input.release()
