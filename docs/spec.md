@@ -1,14 +1,37 @@
 # Especificação técnica: Virtual Stream Engine (VSE)
 
+> **Implementação:** Poetry, Python 3.12+, pacote na raiz do repositório (`package-mode = false`).  
+> **Instalação e uso diário:** [README.md](../README.md). **Onde editar o código:** [§8 Guia de manutenção](#8-guia-de-manutenção).
+
 ## 1. Visão geral
 
 O **Virtual Stream Engine (VSE)** é uma aplicação em Python que:
 
 1. Captura frames de uma webcam física.
-2. Aplica pipelines modulares de processamento (filtros estéticos, efeitos com landmarks faciais e manipulação de frames).
-3. Publica o resultado em uma câmera virtual consumível por Microsoft Teams, Zoom, Discord e apps similares.
+2. Interpreta **gestos** (mão + rosto) para **ações** e **modos** de filtro.
+3. Aplica um pipeline modular de vídeo (pass-through, overlay AR, fade sobre fundo congelado).
+4. Publica o resultado em uma câmera virtual consumível por Microsoft Teams, Zoom, Discord e apps similares.
 
-**Stack prevista:** OpenCV (captura), MediaPipe (face mesh), NumPy (blend), [pyvirtualcam](https://github.com/letmaik/pyvirtualcam) (saída virtual). No Linux, a câmera virtual costuma depender de `v4l2loopback`; no Windows, do driver OBS Virtual Camera ou equivalente.
+**Stack:**
+
+| Camada | Tecnologia |
+|--------|------------|
+| Captura | OpenCV `VideoCapture` |
+| Gestos / landmarks | MediaPipe **Tasks** — `HandLandmarker` + `FaceLandmarker` |
+| Processamento | NumPy, composição BGRA |
+| Saída virtual | [pyvirtualcam](https://github.com/letmaik/pyvirtualcam) (`PixelFormat.BGR`) |
+| Empacotamento | Poetry |
+
+No Linux, a câmera virtual costuma depender de `v4l2loopback`; no Windows, do driver OBS Virtual Camera ou equivalente.
+
+### 1.1 Conceitos
+
+| Conceito | Descrição |
+|----------|-----------|
+| **Filtro** | Transformação de vídeo por frame (`VideoFilter`), registrada em `filters/catalog.py`. |
+| **Ação** | Efeito com estado (ex.: fade no fundo) acionado por **gesto**, não por tecla de modo. |
+| **Gesto** | Heurística sobre landmarks → evento estável no `GestureSnapshot`. |
+| **Modo AR** | Estado booleano no `GestureHub` (`ar_enabled`); óculos aplicados no pipeline quando ativo. |
 
 ---
 
@@ -16,33 +39,45 @@ O **Virtual Stream Engine (VSE)** é uma aplicação em Python que:
 
 ### 2.1 Funcionais
 
-| ID | Requisito |
-|----|-----------|
-| **RF01** | Consumir a webcam em **1280×720 @ 30 FPS**. |
-| **RF02** | Expor o fluxo processado como dispositivo de vídeo virtual do SO. |
-| **RF03** | **Filtro meme (fade):** congelar o fundo e fazer fade linear da pessoa (opacidade) com gatilhos de teclado. |
-| **RF04** | **Filtro AR:** mapear landmarks faciais e sobrepor PNG transparente (ex.: óculos) com escala e rotação conforme a cabeça. |
-| **RF05** | **Hot-swap:** alternar filtros em tempo real sem derrubar a transmissão. |
+| ID | Requisito | Estado |
+|----|-----------|--------|
+| **RF01** | Consumir a webcam em **1280×720 @ 30 FPS** (configurável em `config/settings.py`). | Implementado |
+| **RF02** | Expor o fluxo processado como dispositivo de vídeo virtual do SO. | Implementado |
+| **RF03** | **Ação peace-out:** fundo congelado na inicialização; ✌️ estável dispara fade linear da pessoa. | Implementado |
+| **RF04** | **Retorno do fade:** punho fechado (e fallback tecla `A`) restaura opacidade. | Implementado |
+| **RF05** | **AR óculos:** overlay PNG BGRA alinhado a landmarks faciais (escala/rotação olho–olho). | Implementado |
+| **RF06** | **Toggle AR por gesto:** toque intencional (indicador perto do olho) liga/desliga óculos. | Implementado |
+| **RF07** | **Debug:** exibir landmarks de mão/rosto no preview local (tecla `D`), sem enviar à câmera virtual. | Implementado |
+| **RF08** | Pipeline contínuo: gestos e filtros sem reiniciar a transmissão virtual. | Implementado |
 
 ### 2.2 Não funcionais
 
 | ID | Requisito |
 |----|-----------|
-| **RNF01** | Latência de processamento por frame **≤ 33,3 ms** (30 FPS estáveis). |
-| **RNF02** | Novos filtros via novos módulos em `filters/`, sem alterar captura nem saída (aberto/fechado). |
+| **RNF01** | Meta de latência por frame **≤ 33,3 ms** (30 FPS). *Dupla inferência mão+rosto pode exigir tuning em hardware modesto.* |
+| **RNF02** | Novos **filtros** via `filters/catalog.py` + módulo em `filters/`, sem alterar `camera_stream` nem `virtual_cam_output`. |
+| **RNF03** | Novos **gestos** via `core/gestures/` + integração em `hub.py` / `gesture_events.py`. |
+| **RNF04** | Configuração central em `config/settings.py` (sensibilidade de gestos, paths, resolução). |
 
-### 2.3 Atalhos de teclado (contrato global)
+### 2.3 Gestos (contrato principal)
+
+| Gesto | Condição (resumo) | Efeito |
+|-------|-------------------|--------|
+| **Peace out** ✌️ | Indicador+médio estendidos; anelar/mindinho fechados; mão ≥ `min_hand_span_ratio` da largura do frame; `gesture_stable_frames` consecutivos | `peace_out` → inicia fade out |
+| **Punho** | Dedos recolhidos; estável N frames | `fade_in` → restaura pessoa |
+| **Toque no olho** | Pose de indicador; ponta do indicador dentro de `eye_touch_radius_factor × distância interocular` de um olho; debounce/cooldown | `toggle_ar` → alterna `ar_enabled` |
+
+Heurísticas detalhadas: `core/gestures/hand_pose.py`, `core/gestures/eye_touch.py`. Debounce e cooldown: `core/gestures/hub.py`.
+
+### 2.4 Teclado (auxiliar)
 
 | Tecla | Ação |
 |-------|------|
-| `1` | Filtro **normal** (pass-through). |
-| `2` | Filtro **meme** (fade). |
-| `3` | Filtro **AR** (face mesh). |
-| `S` | No filtro meme: iniciar sumiço (fade out da pessoa). |
-| `A` | No filtro meme: voltar a aparecer (fade in). |
-| `Q` | Encerrar o loop e liberar hardware. |
+| `D` | Liga/desliga desenho de landmarks no **preview** |
+| `A` | Fade in (fallback, mesma ação que punho) |
+| `Q` | Encerrar loop e liberar hardware |
 
-O orquestrador trata troca de filtro (`1`–`3`) antes de delegar `handle_input` ao filtro ativo, para que `S`/`A` não conflitem com outras funções.
+Teclas de modo `1`/`2`/`3` e `S` do MVP original **não** fazem parte do contrato atual.
 
 ---
 
@@ -50,232 +85,288 @@ O orquestrador trata troca de filtro (`1`–`3`) antes de delegar `handle_input`
 
 ```
 filter-cv/
-├── main.py                 # Orquestrador e game loop
-├── camera_stream.py        # Entrada (OpenCV VideoCapture)
-├── virtual_cam_output.py   # Saída (pyvirtualcam)
-└── filters/
-    ├── base_filter.py      # ABC VideoFilter
-    ├── identity_filter.py  # Pass-through (filtro "normal")
-    ├── fade_meme_filter.py # Meme / fade no fundo congelado
-    └── face_mesh_filter.py # Overlays AR (MediaPipe)
+├── main.py                      # Entrada CLI → VirtualStreamEngine
+├── pyproject.toml / poetry.toml
+├── config/
+│   └── settings.py              # StreamConfig
+├── core/
+│   ├── engine.py                # Loop + lifecycle
+│   ├── frame_processor.py       # identity → AR? → disappear
+│   ├── gesture_events.py
+│   ├── keyboard_handler.py
+│   ├── preview.py
+│   ├── camera_stream.py
+│   ├── virtual_cam_output.py
+│   ├── keys.py
+│   ├── gesture_hub.py           # Reexport GestureHub / GestureSnapshot
+│   └── gestures/
+│       ├── hub.py               # MediaPipe + estabilidade + AR toggle
+│       ├── hand_pose.py
+│       ├── eye_touch.py
+│       └── types.py
+├── filters/
+│   ├── context.py               # FilterFactoryContext
+│   ├── catalog.py               # FILTER_FACTORIES
+│   ├── registry.py              # build_filters()
+│   ├── base_filter.py
+│   ├── identity_filter.py
+│   ├── face_mesh_filter.py
+│   ├── ar/
+│   │   ├── landmarks.py
+│   │   └── glasses_renderer.py
+│   └── actions/
+│       └── disappear_fade.py
+├── utils/
+│   ├── mediapipe/models.py
+│   ├── mediapipe/debug_draw.py
+│   └── bgra/
+│       ├── assets.py
+│       └── blend.py
+├── assets/                      # PNGs, modelos .task (cache)
+├── scripts/
+└── docs/
+    └── spec.md                  # Este documento
 ```
 
-Assets opcionais (ex.: `assets/oculos_thug_life.png`) ficam fora de `filters/` para não misturar lógica e recurso estático.
+Assets estáticos (`assets/oculos_thug_life.png`, `assets/models/*.task`) ficam fora de `filters/` para separar lógica e recurso.
 
 ---
 
-## 4. Contratos e pseudocódigo por componente
+## 4. Contratos por componente
 
-### 4.1 `filters/base_filter.py`
-
-**Responsabilidade:** contrato abstrato do pipeline de vídeo.
+### 4.1 `filters/base_filter.py` — `VideoFilter`
 
 ```text
 CLASSE VideoFilter (ABC):
-    @abstractmethod
-    METODO handle_input(tecla: int) -> None
-
-    @abstractmethod
-    METODO apply(frame: ndarray BGR) -> ndarray BGR
+    handle_input(tecla: int) -> None
+    apply(frame BGR, face_landmarks opcional) -> frame BGR uint8
+    close() -> None   # opcional; libera recursos nativos
 ```
 
-### 4.2 `filters/identity_filter.py`
+Landmarks faciais vêm do `GestureHub` (uma inferência por frame), não de segundo `FaceLandmarker` no filtro.
 
-**Responsabilidade:** filtro padrão sem efeito (hot-swap para “câmera crua” processada apenas pela cadeia de saída).
+### 4.2 `filters/catalog.py` + `registry.py`
 
 ```text
-CLASSE IdentityFilter IMPLEMENTA VideoFilter:
-    METODO handle_input(tecla): passar
-    METODO apply(frame): RETORNAR frame
+FILTER_FACTORIES: dict[str, Callable[FilterFactoryContext, VideoFilter]]
+build_filters(ctx) -> dict[str, VideoFilter]
 ```
 
-### 4.3 `filters/fade_meme_filter.py`
+Filtros atuais: `normal` (`IdentityFilter`), `ar` (`FaceMeshFilter`).
 
-**Responsabilidade:** estado do fundo congelado e interpolação linear de opacidade da pessoa sobre esse fundo.
+### 4.3 `filters/actions/disappear_fade.py` — `DisappearFadeAction`
 
 ```text
-IMPORTAR VideoFilter DE filters.base_filter
-
-CLASSE FadeMemeFilter IMPLEMENTA VideoFilter:
-    fundo_limpo: ndarray
-    alpha: float = 1.0          # 1 = pessoa visível, 0 = só fundo
-    esta_sumindo: bool = False
-
-    METODO __init__(frame_fundo_inicial):
-        fundo_limpo = copia(frame_fundo_inicial)
-
-    METODO handle_input(tecla):
-        SE tecla == TECLA_S: esta_sumindo = True
-        SE tecla == TECLA_A: esta_sumindo = False
-
-    METODO apply(frame):
-        SE esta_sumindo E alpha > 0.0: alpha -= 0.05
-        SENAO SE NAO esta_sumindo E alpha < 1.0: alpha += 0.05
-
-        beta = 1.0 - alpha
-        RETORNAR (frame.astype(float) * alpha) + (fundo_limpo.astype(float) * beta)
-        # converter de volta para uint8 BGR antes de enviar à câmera virtual
+CLASSE DisappearFadeAction:
+    __init__(background_frame)
+    start_fade_out() / start_fade_in()
+    apply(frame) -> blend linear alpha sobre background congelado
 ```
 
-**Nota:** `fundo_limpo` deve ser capturado com a pessoa fora do quadro ou em pose neutra; o fluxo de UX em `capturar_fundo_estatico()` orienta o usuário.
+Não implementa `VideoFilter`; é camada **pós-filtro** em `FrameProcessor`.
 
-### 4.4 `filters/face_mesh_filter.py`
-
-**Responsabilidade:** MediaPipe Face Mesh, geometria olho–olho e composição alpha do overlay.
+### 4.4 `filters/ar/glasses_renderer.py`
 
 ```text
-IMPORTAR VideoFilter DE filters.base_filter
-
-CLASSE FaceMeshFilter IMPLEMENTA VideoFilter:
-    modelo: MediaPipe FaceMesh
-    textura_asset: ndarray BGRA
-
-    METODO __init__(caminho_png):
-        modelo = inicializar_face_mesh()
-        textura_asset = carregar_png_com_alpha(caminho_png)
-
-    METODO handle_input(tecla): passar
-
-    METODO apply(frame):
-        landmarks = modelo.process(frame)
-        SE landmarks ausentes: RETORNAR frame
-
-        olho_esq = landmarks[33]
-        olho_dir = landmarks[263]
-        nariz    = landmarks[1]   # ou índice estável na ponte nasal
-
-        distancia = norma(olho_esq - olho_dir)
-        angulo    = atan2(dy_olhos, dx_olhos)
-
-        overlay = redimensionar_e_rotacionar(textura_asset, distancia, angulo)
-        RETORNAR mesclar_bgra(frame, overlay, ancora=nariz)
+render_glasses(frame, face_landmarks, asset_bgra) -> frame
+    olhos: landmarks 33, 263; âncora: 1 (ponte nasal)
+    largura overlay ∝ distância interocular; rotação = atan2 entre olhos
 ```
 
-Índices de landmarks seguem o mapa oficial do MediaPipe; ajustar âncora (`nariz` vs centro entre olhos) conforme o asset.
-
-### 4.5 `camera_stream.py`
-
-**Responsabilidade:** abstrair `cv2.VideoCapture` (abertura, resolução, leitura, release).
+### 4.5 `core/gestures/hub.py` — `GestureHub`
 
 ```text
-CLASSE CameraStream:
-    captura: cv2.VideoCapture
-
-    METODO __init__(device_id=0, largura=1280, altura=720, fps=30):
-        captura = VideoCapture(device_id)
-        definir CAP_PROP_FRAME_WIDTH, FRAME_HEIGHT, FPS
-
-    METODO obter_frame() -> ndarray | None:
-        ok, frame = captura.read()
-        RETORNAR frame SE ok SENAO None
-
-    METODO capturar_fundo_estatico(segundos=2) -> ndarray:
-        avisar usuário para sair do quadro
-        aguardar segundos
-        RETORNAR obter_frame()
-
-    METODO liberar():
-        captura.release()
+update(frame_bgr) -> GestureSnapshot
+    hand_landmarks, face_landmarks
+    peace_out, fade_in, toggle_ar  (borda, após estabilidade)
+    ar_enabled: bool (estado do modo óculos)
+close()
 ```
 
-### 4.6 `virtual_cam_output.py`
+Modelos: `utils/mediapipe/models.py` (download sob demanda).
 
-**Responsabilidade:** enviar frames BGR/RGB no formato exigido pelo backend do pyvirtualcam e respeitar o relógio de FPS.
+### 4.6 `core/camera_stream.py` — `CameraStream`
 
 ```text
-CLASSE VirtualCamOutput:
-    cam: pyvirtualcam.Camera
-
-    METODO __init__(largura=1280, altura=720, fps=30):
-        cam = Camera(width, height, fps, fmt=PixelFormat apropriado)
-
-    METODO enviar(frame_bgr):
-        converter cor se necessário
-        cam.send(frame)
-        cam.sleep_until_next_frame()
-
-    METODO fechar():
-        cam.close()
+read_frame() -> ndarray | None
+capture_static_background(seconds) -> ndarray   # UX: usuário sai do quadro
+release()
 ```
 
-### 4.7 `main.py`
-
-**Responsabilidade:** composição (DI), janela de preview opcional, hot-swap, loop principal.
+### 4.7 `core/virtual_cam_output.py` — `VirtualCamOutput`
 
 ```text
-IMPORTAR CameraStream, VirtualCamOutput
-IMPORTAR IdentityFilter, FadeMemeFilter, FaceMeshFilter
-
-CLASSE VirtualStreamEngine:
-    input_hw: CameraStream
-    output_hw: VirtualCamOutput
-    filtros: dict[str, VideoFilter]
-    filtro_atual: VideoFilter
-
-    METODO __init__():
-        input_hw = CameraStream(0, 1280, 720, 30)
-        fundo = input_hw.capturar_fundo_estatico()
-
-        filtros = {
-            "normal": IdentityFilter(),
-            "meme":   FadeMemeFilter(fundo),
-            "ar":     FaceMeshFilter("assets/oculos_thug_life.png"),
-        }
-        filtro_atual = filtros["normal"]
-        output_hw = VirtualCamOutput(1280, 720, 30)
-
-    METODO executar():
-        ENQUANTO ativo:
-            frame = input_hw.obter_frame()
-            SE frame é None: continuar
-
-            tecla = ler_tecla()  # ex.: cv2.waitKey na janela de preview
-
-            SE tecla == "1": filtro_atual = filtros["normal"]
-            SE tecla == "2": filtro_atual = filtros["meme"]
-            SE tecla == "3": filtro_atual = filtros["ar"]
-            SE tecla == "Q": quebrar
-
-            filtro_atual.handle_input(tecla)
-            frame_out = filtro_atual.apply(frame)
-            output_hw.enviar(frame_out)
-
-        input_hw.liberar()
-        output_hw.fechar()
-
-SE __name__ == "__main__":
-    VirtualStreamEngine().executar()
+send(frame_bgr)   # send + sleep_until_next_frame
+close()
 ```
+
+### 4.8 `core/engine.py` — `VirtualStreamEngine`
+
+```text
+__init__: monta CameraStream, GestureHub, FrameProcessor, DisappearFadeAction, VirtualCamOutput
+run():
+    loop:
+        frame = read
+        snap = gestures.update(frame)
+        apply_gesture_events(snap)
+        teclas = keyboard_handler
+        out = frame_processor.process(frame, snap, ar_enabled)
+        virtual_cam.send(out)
+        preview opcional
+shutdown(): idempotente
+```
+
+Entrada: `main.py` ou `poetry run vse`.
 
 ---
 
 ## 5. Fluxo de dados
 
 ```mermaid
-flowchart LR
+flowchart TB
     Webcam --> CameraStream
-    CameraStream --> FiltroAtivo
-    FiltroAtivo --> VirtualCamOutput
+    CameraStream --> GestureHub
+    GestureHub --> GestureEvents
+    GestureEvents --> DisappearFade
+    CameraStream --> FrameProcessor
+    GestureHub --> FrameProcessor
+    FrameProcessor --> IdentityFilter
+    FrameProcessor --> FaceMeshFilter
+    FrameProcessor --> DisappearFade
+    DisappearFade --> VirtualCamOutput
     VirtualCamOutput --> Apps["Teams / Zoom / Discord"]
-    Teclado --> Orquestrador
-    Orquestrador --> FiltroAtivo
+    Keyboard --> Engine
+    Engine --> Preview["Preview local (HUD + debug)"]
+    FrameProcessor --> Preview
 ```
 
----
-
-## 6. Critérios de aceite (MVP)
-
-1. Com o VSE rodando, o SO lista uma câmera virtual e o Teams (ou `ffplay`/`v4l2`) exibe o preview.
-2. Teclas `1`/`2`/`3` trocam o efeito sem travar o vídeo por mais de um frame.
-3. No filtro meme, `S` reduz a opacidade da pessoa até revelar o fundo congelado; `A` restaura.
-4. No filtro AR, com rosto visível, o overlay acompanha escala e inclinação da cabeça de forma estável em 720p30.
-5. `Q` encerra sem vazar handle de câmera (sem dispositivo preso após o processo morrer).
+Ordem no `FrameProcessor`: **normal → AR (se `ar_enabled`) → disappear fade**.
 
 ---
 
-## 7. Extensões futuras (fora do MVP)
+## 6. Critérios de aceite
 
-- Registro de filtros por plugin (`filters/__init__.py` exportando um registry).
-- Filtros com estado compartilhado (ex.: blur de fundo com segmentação).
-- Métricas de FPS e latência na UI de preview.
-- Configuração via arquivo (`config.yaml`) para device id, resolução e paths de assets.
+1. Com o VSE rodando, o SO lista uma câmera virtual e um app de vídeo exibe o preview do dispositivo virtual.
+2. Na inicialização, o usuário sai do quadro ~2 s; o fundo é capturado para a ação peace-out.
+3. ✌️ estável faz a pessoa sumir gradualmente sobre o fundo congelado; punho (ou `A`) restaura.
+4. Toque no olho alterna óculos AR; com rosto visível, o overlay acompanha cabeça em 720p30 de forma aceitável.
+5. `D` alterna landmarks apenas no preview; o stream virtual não mostra os pontos.
+6. `Q` encerra sem vazar handle de câmera física ou virtual.
+
+---
+
+## 7. Extensões futuras
+
+| Item | Notas |
+|------|--------|
+| `config.yaml` | Substituir ou complementar `config/settings.py` |
+| Métricas FPS/latência no preview | `core/preview.py` |
+| Blur de fundo / segmentação | Novo filtro + possivelmente modelo extra |
+| Mais ações por gesto | Padrão: `types.py` → `hub.py` → `gesture_events.py` → `frame_processor.py` |
+| Plugins de filtro | Evolução de `catalog.py` (entry points / descoberta dinâmica) |
+
+---
+
+## 8. Guia de manutenção
+
+Use esta seção para saber **onde editar** sem percorrer o projeto inteiro.
+
+### 8.1 Tabela de referência
+
+| O que você quer fazer | Arquivo(s) | Notas |
+|----------------------|------------|--------|
+| **Novo gesto** (ex.: acenar) | `core/gestures/hand_pose.py` ou `eye_touch.py` | Heurística pura em landmarks normalizados |
+| **Disparar ação ao reconhecer gesto** | `core/gestures/hub.py` | Debounce, cooldown, flags no `GestureSnapshot` |
+| **Novo campo no resultado do frame** | `core/gestures/types.py` | `GestureSnapshot` |
+| **Log / efeito ao disparar evento** | `core/gesture_events.py` | Peace, punho, toggle AR |
+| **Sensibilidade dos gestos** | `config/settings.py` | `gesture_stable_frames`, `min_hand_span_ratio`, `eye_touch_radius_factor` |
+| **Novo filtro de vídeo** | `filters/catalog.py` + classe em `filters/` | Implemente `VideoFilter` (`base_filter.py`) |
+| **Tipos do factory de filtros** | `filters/context.py` | `FilterFactoryContext` |
+| **Montar lista de filtros** | `filters/registry.py` | `build_filters()` — raramente precisa mudar |
+| **Óculos / overlay AR** | `filters/ar/glasses_renderer.py`, asset em `assets/` | Landmarks em `filters/ar/landmarks.py` |
+| **Ação “sumir” (fade)** | `filters/actions/disappear_fade.py` | Velocidade: `_ALPHA_STEP` |
+| **Ordem do pipeline** | `core/frame_processor.py` | normal → AR → fade |
+| **Preview / HUD** | `core/preview.py` | Não vai para a câmera virtual |
+| **Teclas globais** | `core/keyboard_handler.py`, constantes em `core/keys.py` |
+| **Loop principal** | `core/engine.py` | Só orquestração; lógica pesada fica nos módulos acima |
+| **Webcam entrada** | `core/camera_stream.py` | Resolução/FPS também em `config/settings.py` |
+| **Câmera virtual saída** | `core/virtual_cam_output.py` |
+| **Download modelos MediaPipe** | `utils/mediapipe/models.py` | URLs dos `.task` em `assets/models/` |
+| **Desenho debug landmarks** | `utils/mediapipe/debug_draw.py` | Ligado com `D` no preview |
+| **Composição PNG transparente** | `utils/bgra/assets.py`, `utils/bgra/blend.py` |
+| **Resolução, device, paths** | `config/settings.py` | Futuro: YAML pode substituir este módulo |
+| **Entrada CLI** | `main.py` | Delega para `core/engine.py` |
+| **Requisitos e contratos** | `docs/spec.md` (este arquivo) | RF/RNF, arquitetura, aceite |
+
+### 8.2 Fluxo de um frame
+
+```
+camera_stream.read_frame()
+  → gesture_hub.update()     # mão + rosto, eventos no snapshot
+  → gesture_events           # fade / log AR
+  → keyboard_handler         # D, A, Q
+  → frame_processor          # identity → AR (se on) → disappear
+  → virtual_cam_output.send()
+  → preview (opcional)
+```
+
+### 8.3 Estrutura de pastas (implementação)
+
+```
+main.py
+config/settings.py
+docs/spec.md
+
+core/
+  engine.py
+  frame_processor.py
+  gesture_events.py
+  keyboard_handler.py
+  preview.py
+  camera_stream.py
+  virtual_cam_output.py
+  keys.py
+  gesture_hub.py          # reexport: GestureHub, GestureSnapshot
+  gestures/
+    hub.py
+    hand_pose.py
+    eye_touch.py
+    types.py
+
+filters/
+  context.py
+  catalog.py
+  registry.py
+  base_filter.py
+  identity_filter.py
+  face_mesh_filter.py
+  ar/
+    landmarks.py
+    glasses_renderer.py
+  actions/
+    disappear_fade.py
+
+utils/
+  mediapipe/
+    models.py
+    debug_draw.py
+  bgra/
+    assets.py
+    blend.py
+
+assets/
+scripts/
+```
+
+### 8.4 Checklist: novo filtro
+
+1. Criar `filters/meu_filtro.py` herdando `VideoFilter`.
+2. Registrar factory em `filters/catalog.py` (`FILTER_FACTORIES`).
+3. Se o filtro depende de gesto, estender `GestureSnapshot` + `hub.py` + `gesture_events.py` + `frame_processor.py`.
+4. Rodar `poetry run pyright .` na raiz do projeto.
+
+### 8.5 Checklist: novo gesto
+
+1. Função de detecção em `hand_pose.py` ou `eye_touch.py`.
+2. Usar em `gestures/hub.py` (`_poses_this_frame` + estabilidade em `_apply_stability`).
+3. Se gera ação nova, campo em `types.py` e handler em `gesture_events.py` (e pipeline se alterar vídeo).
