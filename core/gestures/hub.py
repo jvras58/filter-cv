@@ -23,7 +23,7 @@ from core.gestures.hand_pose import (
     is_peace_sign,
 )
 from core.gestures.types import GestureSnapshot, HandLandmarks
-from utils.mediapipe_models import ensure_face_landmarker_model, ensure_hand_landmarker_model
+from utils.mediapipe.models import ensure_face_landmarker_model, ensure_hand_landmarker_model
 
 
 class GestureHub:

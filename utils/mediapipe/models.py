@@ -1,4 +1,4 @@
-"""Download and cache MediaPipe task models."""
+"""Download e cache dos modelos ``.task`` do MediaPipe."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Loop principal do VSE: captura → gestos → filtros → ações → saída virtual."""
+"""Loop principal do VSE: captura → gestos → filtros → saída virtual."""
 
 from __future__ import annotations
 
@@ -6,30 +6,22 @@ import cv2
 
 from config.settings import DEFAULT_STREAM_CONFIG, StreamConfig
 from core.camera_stream import CameraStream
+from core.frame_processor import FrameProcessor
+from core.gesture_events import apply_gesture_events
 from core.gesture_hub import GestureHub
-from core.keys import (
-    KEY_DEBUG_LANDMARKS,
-    KEY_DEBUG_LANDMARKS_UPPER,
-    KEY_FADE_IN,
-    KEY_FADE_IN_UPPER,
-    KEY_QUIT,
-    KEY_QUIT_UPPER,
-    PREVIEW_WINDOW_NAME,
-)
+from core.keyboard_handler import KeyboardHandler
+from core.preview import show_preview
 from core.virtual_cam_output import VirtualCamOutput
 from filters.actions.disappear_fade import DisappearFadeAction
-from filters.base_filter import VideoFilter
 from filters.face_mesh_filter import FaceMeshFilter
 from filters.registry import FilterFactoryContext, build_filters
-from utils.landmark_debug import draw_face_landmarks, draw_hand_landmarks
 
 
 class VirtualStreamEngine:
-    """Compõe hardware, gestos, filtros de vídeo e ações pós-processamento."""
+    """Monta dependências, executa o loop e garante shutdown limpo."""
 
     def __init__(self, config: StreamConfig | None = None) -> None:
         self._config = config or DEFAULT_STREAM_CONFIG
-        self._show_landmarks = self._config.show_landmarks
         self._input = CameraStream(
             self._config.device_id,
             self._config.width,
@@ -39,13 +31,18 @@ class VirtualStreamEngine:
         background = self._input.capture_static_background(
             self._config.background_capture_seconds
         )
-        ctx = FilterFactoryContext(config=self._config)
-        self._filters: dict[str, VideoFilter] = build_filters(ctx)
-        self._identity = self._filters["normal"]
-        self._ar = self._filters["ar"]
-        assert isinstance(self._ar, FaceMeshFilter)
+        filters = build_filters(FilterFactoryContext(config=self._config))
+        ar_filter = filters["ar"]
+        assert isinstance(ar_filter, FaceMeshFilter)
+
         self._disappear = DisappearFadeAction(background)
         self._gestures = GestureHub(self._config)
+        self._keyboard = KeyboardHandler(
+            self._disappear,
+            show_landmarks_initial=self._config.show_landmarks,
+        )
+        self._pipeline = FrameProcessor(filters["normal"], ar_filter, self._disappear)
+        self._filters = filters
         self._output = VirtualCamOutput(
             self._config.width,
             self._config.height,
@@ -53,18 +50,6 @@ class VirtualStreamEngine:
         )
         self._running = True
         self._shutdown_done = False
-
-    def _handle_keys(self, key: int) -> bool:
-        """Teclas globais. Retorna False para encerrar o loop."""
-        if key in (KEY_QUIT, KEY_QUIT_UPPER):
-            return False
-        if key in (KEY_DEBUG_LANDMARKS, KEY_DEBUG_LANDMARKS_UPPER):
-            self._show_landmarks = not self._show_landmarks
-            state = "ON" if self._show_landmarks else "OFF"
-            print(f"[VSE] Debug landmarks: {state}")
-        if key in (KEY_FADE_IN, KEY_FADE_IN_UPPER):
-            self._disappear.start_fade_in()
-        return True
 
     def run(self) -> None:
         """Executa o game loop até ``Q`` ou falha de captura."""
@@ -80,57 +65,27 @@ class VirtualStreamEngine:
                     continue
 
                 snap = self._gestures.update(frame)
-
-                if snap.peace_out:
-                    print("[VSE] Ação: peace out — sumindo...")
-                    self._disappear.start_fade_out()
-                if snap.fade_in:
-                    print("[VSE] Ação: punho — voltando...")
-                    self._disappear.start_fade_in()
-                if snap.toggle_ar:
-                    state = "ON" if self._gestures.ar_enabled else "OFF"
-                    print(f"[VSE] Óculos AR: {state}")
+                apply_gesture_events(snap, self._gestures, self._disappear)
 
                 key = cv2.waitKey(1) & 0xFF
-                if key not in (0, 255) and not self._handle_keys(key):
+                if key not in (0, 255) and not self._keyboard.handle(key):
                     break
 
-                frame_out = self._identity.apply(frame)
-                if self._gestures.ar_enabled:
-                    frame_out = self._ar.apply(frame_out, snap.face_landmarks)
-                frame_out = self._disappear.apply(frame_out)
+                frame_out = self._pipeline.process(
+                    frame,
+                    snap,
+                    self._gestures.ar_enabled,
+                )
                 self._output.send(frame_out)
 
                 if self._config.preview_window:
-                    preview = frame_out.copy()
-                    if self._show_landmarks:
-                        draw_hand_landmarks(preview, snap.hand_landmarks)
-                        if snap.face_landmarks:
-                            draw_face_landmarks(preview, snap.face_landmarks)
-
-                    mode = "ar" if self._gestures.ar_enabled else "normal"
-                    cv2.putText(
-                        preview,
-                        f"modo: {mode}",
-                        (16, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.0,
-                        (0, 255, 0),
-                        2,
-                        cv2.LINE_AA,
+                    show_preview(
+                        frame_out,
+                        snap,
+                        show_landmarks=self._keyboard.show_landmarks,
+                        ar_enabled=self._gestures.ar_enabled,
+                        fade_active=self._disappear.is_active,
                     )
-                    if self._disappear.is_active:
-                        cv2.putText(
-                            preview,
-                            "acao: fade",
-                            (16, 80),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.8,
-                            (0, 200, 255),
-                            2,
-                            cv2.LINE_AA,
-                        )
-                    cv2.imshow(PREVIEW_WINDOW_NAME, preview)
         finally:
             self.shutdown()
 
