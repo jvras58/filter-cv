@@ -20,6 +20,12 @@ packages = [{ include = "vse", from = "src" }]
 [tool.poetry.scripts]
 vse = "vse.__main__:main"
 
+[tool.pyright]
+include = ["src"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
