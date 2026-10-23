@@ -1,17 +1,12 @@
-"""AR overlay aligned to MediaPipe Face Landmarker landmarks."""
+"""AR overlay — usa landmarks de rosto já detectados no GestureHub."""
 
 from __future__ import annotations
 
 import math
 
-import cv2
 import numpy as np
-from mediapipe import Image, ImageFormat
-from mediapipe.tasks.python.core.base_options import BaseOptions
-from mediapipe.tasks.python.vision import FaceLandmarker, FaceLandmarkerOptions, RunningMode
 
 from filters.base_filter import VideoFilter
-from utils.mediapipe_models import ensure_face_landmarker_model
 from utils.overlay import blend_bgra_on_bgr, load_bgra_asset, transform_overlay
 
 _LANDMARK_LEFT_EYE = 33
@@ -20,44 +15,35 @@ _LANDMARK_NOSE_BRIDGE = 1
 _OVERLAY_WIDTH_FACTOR = 2.8
 
 
+def _landmark_xy(
+    face: list[tuple[float, float, float]], index: int, w: int, h: int
+) -> tuple[float, float]:
+    x, y, _ = face[index]
+    return x * w, y * h
+
+
 class FaceMeshFilter(VideoFilter):
-    def __init__(self, overlay_path: str, fps: int = 30) -> None:
+    def __init__(self, overlay_path: str) -> None:
         self._overlay_asset = load_bgra_asset(overlay_path)
-        model_path = ensure_face_landmarker_model()
-        options = FaceLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=str(model_path)),
-            running_mode=RunningMode.VIDEO,
-            num_faces=1,
-            output_face_blendshapes=False,
-            output_facial_transformation_matrixes=False,
-        )
-        self._landmarker = FaceLandmarker.create_from_options(options)
-        self._frame_index = 0
-        self._fps_hint_ms = max(1, int(1000 / fps))
 
     def handle_input(self, key: int) -> None:
         return
 
-    def apply(self, frame: np.ndarray) -> np.ndarray:
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = Image(image_format=ImageFormat.SRGB, data=rgb)
-        timestamp_ms = self._frame_index * self._fps_hint_ms
-        self._frame_index += 1
-
-        result = self._landmarker.detect_for_video(mp_image, timestamp_ms)
-        if not result.face_landmarks:
+    def apply(
+        self,
+        frame: np.ndarray,
+        face_landmarks: list[tuple[float, float, float]] | None = None,
+    ) -> np.ndarray:
+        if not face_landmarks:
             return frame
 
-        landmarks = result.face_landmarks[0]
         h, w = frame.shape[:2]
-
-        left = landmarks[_LANDMARK_LEFT_EYE]
-        right = landmarks[_LANDMARK_RIGHT_EYE]
-        nose = landmarks[_LANDMARK_NOSE_BRIDGE]
-
-        left_pt = np.array([left.x * w, left.y * h], dtype=np.float32)
-        right_pt = np.array([right.x * w, right.y * h], dtype=np.float32)
-        nose_pt = (int(nose.x * w), int(nose.y * h))
+        left_pt = np.array(_landmark_xy(face_landmarks, _LANDMARK_LEFT_EYE, w, h), dtype=np.float32)
+        right_pt = np.array(
+            _landmark_xy(face_landmarks, _LANDMARK_RIGHT_EYE, w, h), dtype=np.float32
+        )
+        nose_x, nose_y = _landmark_xy(face_landmarks, _LANDMARK_NOSE_BRIDGE, w, h)
+        nose_pt = (int(nose_x), int(nose_y))
 
         delta = right_pt - left_pt
         eye_distance = float(np.linalg.norm(delta))
@@ -68,6 +54,3 @@ class FaceMeshFilter(VideoFilter):
         target_width = eye_distance * _OVERLAY_WIDTH_FACTOR
         overlay = transform_overlay(self._overlay_asset, target_width, angle_deg)
         return blend_bgra_on_bgr(frame, overlay, nose_pt[0], nose_pt[1])
-
-    def close(self) -> None:
-        self._landmarker.close()

@@ -1,6 +1,6 @@
 # Virtual Stream Engine (VSE)
 
-Webcam → filtros modulares → câmera virtual (Teams, Zoom, Discord).
+Webcam → gestos → filtros/ações → câmera virtual (Teams, Zoom, Discord).
 
 ## Requisitos
 
@@ -9,7 +9,6 @@ Webcam → filtros modulares → câmera virtual (Teams, Zoom, Discord).
 - Linux: módulo `v4l2loopback` e dispositivo `/dev/video*` para a câmera virtual
 
 ```bash
-# Exemplo (Debian/Ubuntu)
 sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="VSE Virtual Cam"
 ```
 
@@ -17,8 +16,7 @@ sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="VSE Virtual Cam"
 
 ```bash
 poetry install
-poetry run python scripts/generate_default_overlay.py   # asset AR padrão
-# O modelo Face Landmarker é baixado automaticamente na 1ª execução do filtro AR.
+poetry run python scripts/generate_default_overlay.py
 ```
 
 ## Uso
@@ -29,35 +27,34 @@ poetry run vse
 poetry run python main.py
 ```
 
+### Gestos (principal)
+
+| Gesto | Efeito |
+|-------|--------|
+| ✌️ (peace, mão grande no quadro) | Some no fundo congelado |
+| Punho fechado | Volta a aparecer |
+| Toque no olho (indicador perto do olho) | Liga/desliga óculos AR |
+
+### Teclado
+
 | Tecla | Ação |
 |-------|------|
-| `1` | Filtro normal |
-| `3` | AR (óculos) |
-| ✌️ (gesto) | Ação **peace out** — some no fundo congelado |
-| Mão aberta | Volta a aparecer |
-| `A` | Voltar (atalho de teclado) |
+| `D` | Liga/desliga pontos de mão/rosto (debug) |
+| `A` | Voltar do fade (fallback) |
 | `Q` | Sair |
 
-Na inicialização, saia do quadro por ~2s para capturar o fundo do filtro meme.
+Na inicialização, saia do quadro ~2s para capturar o fundo do fade.
+
+Ajustes de sensibilidade em `config/settings.py` (`gesture_stable_frames`, `min_hand_span_ratio`, `eye_touch_radius_factor`).
 
 ## Estrutura
 
 ```
 main.py
-core/
-  engine.py
-  camera_stream.py
-  virtual_cam_output.py
-  keys.py
-config/
-  settings.py
+core/gesture_hub.py
+core/engine.py
+config/settings.py
 filters/
-  registry.py
-  actions/disappear_fade.py
-  …
-core/peace_sign_detector.py
-utils/
+utils/landmark_debug.py
 assets/
 ```
-
-Novo filtro: implemente `VideoFilter`, registre em `filters/registry.py` e, se precisar, hotkey em `core/keys.py`.

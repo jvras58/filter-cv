@@ -1,16 +1,10 @@
-"""Global keyboard contract (orchestrator + filters)."""
+"""Atalhos de teclado (gestos são o fluxo principal)."""
 
-KEY_NORMAL = ord("1")
-KEY_AR = ord("3")
 KEY_QUIT = ord("q")
-KEY_FADE_IN = ord("a")
-
 KEY_QUIT_UPPER = ord("Q")
+KEY_DEBUG_LANDMARKS = ord("d")
+KEY_DEBUG_LANDMARKS_UPPER = ord("D")
+KEY_FADE_IN = ord("a")
 KEY_FADE_IN_UPPER = ord("A")
-
-FILTER_HOTKEYS: dict[int, str] = {
-    KEY_NORMAL: "normal",
-    KEY_AR: "ar",
-}
 
 PREVIEW_WINDOW_NAME = "VSE Preview"

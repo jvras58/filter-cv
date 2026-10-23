@@ -17,6 +17,10 @@ class StreamConfig:
     preview_window: bool = True
     background_capture_seconds: float = 2.0
     overlay_asset_path: Path = DEFAULT_OVERLAY_PATH
+    show_landmarks: bool = False
+    gesture_stable_frames: int = 7
+    min_hand_span_ratio: float = 0.12
+    eye_touch_radius_factor: float = 0.55
 
 
 DEFAULT_STREAM_CONFIG = StreamConfig()

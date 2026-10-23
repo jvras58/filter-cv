@@ -9,5 +9,9 @@ class IdentityFilter(VideoFilter):
     def handle_input(self, key: int) -> None:
         return
 
-    def apply(self, frame: np.ndarray) -> np.ndarray:
+    def apply(
+        self,
+        frame: np.ndarray,
+        face_landmarks: list[tuple[float, float, float]] | None = None,
+    ) -> np.ndarray:
         return frame

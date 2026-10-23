@@ -24,10 +24,7 @@ def _identity_factory(_ctx: FilterFactoryContext) -> VideoFilter:
 
 
 def _ar_factory(ctx: FilterFactoryContext) -> VideoFilter:
-    return FaceMeshFilter(
-        str(ctx.config.overlay_asset_path),
-        fps=ctx.config.fps,
-    )
+    return FaceMeshFilter(str(ctx.config.overlay_asset_path))
 
 
 FILTER_FACTORIES: dict[str, FilterFactory] = {

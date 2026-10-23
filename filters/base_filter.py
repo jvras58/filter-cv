@@ -11,7 +11,11 @@ class VideoFilter(ABC):
         """React to a key press not consumed by the orchestrator."""
 
     @abstractmethod
-    def apply(self, frame: np.ndarray) -> np.ndarray:
+    def apply(
+        self,
+        frame: np.ndarray,
+        face_landmarks: list[tuple[float, float, float]] | None = None,
+    ) -> np.ndarray:
         """Return a BGR uint8 frame."""
 
     def close(self) -> None:
