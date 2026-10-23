@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+
 import cv2
 import numpy as np
 from mediapipe import Image, ImageFormat
@@ -10,15 +11,13 @@ from mediapipe.tasks.python.core import base_options as base_options_module
 from mediapipe.tasks.python.vision import face_landmarker as face_landmarker_module
 from mediapipe.tasks.python.vision.core import vision_task_running_mode as running_mode_module
 
-from vse.filters.base_filter import VideoFilter
-from vse.utils.mediapipe_models import ensure_face_landmarker_model
-from vse.utils.overlay import blend_bgra_on_bgr, load_bgra_asset, transform_overlay
+from filters.base_filter import VideoFilter
+from utils.mediapipe_models import ensure_face_landmarker_model
+from utils.overlay import blend_bgra_on_bgr, load_bgra_asset, transform_overlay
 
-# Face mesh topology indices (MediaPipe).
 _LANDMARK_LEFT_EYE = 33
 _LANDMARK_RIGHT_EYE = 263
 _LANDMARK_NOSE_BRIDGE = 1
-
 _OVERLAY_WIDTH_FACTOR = 2.8
 
 

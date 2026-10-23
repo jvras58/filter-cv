@@ -22,7 +22,6 @@ def transform_overlay(
     target_width: float,
     angle_deg: float,
 ) -> np.ndarray:
-    """Scale asset to target width (px) and rotate around its center."""
     if target_width <= 1:
         return asset_bgra
 
@@ -50,7 +49,6 @@ def blend_bgra_on_bgr(
     anchor_x: int,
     anchor_y: int,
 ) -> np.ndarray:
-    """Alpha-composite overlay onto frame; anchor is overlay center in frame coords."""
     frame_h, frame_w = frame_bgr.shape[:2]
     oh, ow = overlay_bgra.shape[:2]
 

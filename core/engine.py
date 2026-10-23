@@ -4,17 +4,12 @@ from __future__ import annotations
 
 import cv2
 
-from vse.camera_stream import CameraStream
-from vse.config import DEFAULT_STREAM_CONFIG, StreamConfig
-from vse.filters import FilterFactoryContext, build_filters
-from vse.filters.base_filter import VideoFilter
-from vse.keys import (
-    FILTER_HOTKEYS,
-    KEY_QUIT,
-    KEY_QUIT_UPPER,
-    PREVIEW_WINDOW_NAME,
-)
-from vse.virtual_cam_output import VirtualCamOutput
+from config.settings import DEFAULT_STREAM_CONFIG, StreamConfig
+from core.camera_stream import CameraStream
+from core.keys import FILTER_HOTKEYS, KEY_QUIT, KEY_QUIT_UPPER, PREVIEW_WINDOW_NAME
+from core.virtual_cam_output import VirtualCamOutput
+from filters.base_filter import VideoFilter
+from filters.registry import FilterFactoryContext, build_filters
 
 
 class VirtualStreamEngine:
@@ -42,7 +37,6 @@ class VirtualStreamEngine:
         self._shutdown_done = False
 
     def _handle_global_keys(self, key: int) -> bool:
-        """Return False to stop the main loop."""
         if key in (KEY_QUIT, KEY_QUIT_UPPER):
             return False
 
@@ -55,9 +49,7 @@ class VirtualStreamEngine:
         return True
 
     def run(self) -> None:
-        print(
-            "[VSE] Teclas: 1=normal | 2=meme (S/A fade) | 3=AR | Q=sair\n"
-        )
+        print("[VSE] Teclas: 1=normal | 2=meme (S/A fade) | 3=AR | Q=sair\n")
 
         try:
             while self._running:

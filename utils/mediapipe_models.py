@@ -5,7 +5,7 @@ from __future__ import annotations
 import urllib.request
 from pathlib import Path
 
-from vse.config import DEFAULT_ASSETS_DIR
+from config.settings import DEFAULT_ASSETS_DIR
 
 FACE_LANDMARKER_URL = (
     "https://storage.googleapis.com/mediapipe-models/"

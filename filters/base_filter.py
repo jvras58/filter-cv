@@ -6,8 +6,6 @@ import numpy as np
 
 
 class VideoFilter(ABC):
-    """Pipeline stage: optional input handling + per-frame transform."""
-
     @abstractmethod
     def handle_input(self, key: int) -> None:
         """React to a key press not consumed by the orchestrator."""

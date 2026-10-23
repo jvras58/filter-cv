@@ -1,4 +1,4 @@
-"""Filter registry — add new filters here without touching capture/output."""
+"""Registro de filtros — adicione novos módulos aqui sem alterar captura/saída."""
 
 from __future__ import annotations
 
@@ -7,17 +7,15 @@ from typing import Callable
 
 import numpy as np
 
-from vse.config import StreamConfig
-from vse.filters.base_filter import VideoFilter
-from vse.filters.face_mesh_filter import FaceMeshFilter
-from vse.filters.fade_meme_filter import FadeMemeFilter
-from vse.filters.identity_filter import IdentityFilter
+from config.settings import StreamConfig
+from filters.base_filter import VideoFilter
+from filters.face_mesh_filter import FaceMeshFilter
+from filters.fade_meme_filter import FadeMemeFilter
+from filters.identity_filter import IdentityFilter
 
 
 @dataclass(frozen=True)
 class FilterFactoryContext:
-    """Dependencies injected when constructing filters."""
-
     background_frame: np.ndarray
     config: StreamConfig
 
@@ -40,7 +38,7 @@ def _ar_factory(ctx: FilterFactoryContext) -> VideoFilter:
     )
 
 
-# Register new filters by adding an entry (hot-swap key is defined in vse.keys).
+# Novo filtro: implemente VideoFilter e registre aqui (hotkeys em core/keys.py).
 FILTER_FACTORIES: dict[str, FilterFactory] = {
     "normal": _identity_factory,
     "meme": _meme_factory,

@@ -1,6 +1,11 @@
-"""Thin entry point matching spec layout (delegates to package)."""
+"""Ponto de entrada do VSE."""
 
-from vse.__main__ import main
+from core.engine import VirtualStreamEngine
+
+
+def main() -> None:
+    VirtualStreamEngine().run()
+
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from vse.filters.base_filter import VideoFilter
+from filters.base_filter import VideoFilter
 
 
 class IdentityFilter(VideoFilter):

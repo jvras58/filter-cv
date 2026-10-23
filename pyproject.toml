@@ -15,13 +15,14 @@ dependencies = [
 
 
 [tool.poetry]
-packages = [{ include = "vse", from = "src" }]
+package-mode = false
 
 [tool.poetry.scripts]
-vse = "vse.__main__:main"
+vse = "main:main"
 
 [tool.pyright]
-include = ["src"]
+include = ["main.py", "core", "config", "filters", "utils"]
+exclude = [".venv", "scripts", "docs"]
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.12"

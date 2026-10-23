@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from vse.filters.base_filter import VideoFilter
-from vse.keys import KEY_FADE_IN, KEY_FADE_IN_UPPER, KEY_FADE_OUT, KEY_FADE_OUT_UPPER
+from filters.base_filter import VideoFilter
+from core.keys import KEY_FADE_IN, KEY_FADE_IN_UPPER, KEY_FADE_OUT, KEY_FADE_OUT_UPPER
 
 _ALPHA_STEP = 0.05
 

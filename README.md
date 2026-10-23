@@ -41,19 +41,19 @@ Na inicialização, saia do quadro por ~2s para capturar o fundo do filtro meme.
 ## Estrutura
 
 ```
-src/vse/
-  engine.py              # orquestrador
-  camera_stream.py         # entrada
-  virtual_cam_output.py    # saída
-  config.py              # defaults (futuro: YAML)
-  filters/
-    base_filter.py
-    identity_filter.py
-    fade_meme_filter.py
-    face_mesh_filter.py
-    __init__.py            # registry de filtros
-  utils/overlay.py
-assets/                    # PNGs de overlay
+main.py
+core/
+  engine.py
+  camera_stream.py
+  virtual_cam_output.py
+  keys.py
+config/
+  settings.py
+filters/
+  registry.py
+  …
+utils/
+assets/
 ```
 
-Para um novo filtro: implemente `VideoFilter`, registre em `filters/__init__.py` (`FILTER_FACTORIES`) e adicione hotkey em `keys.py` + `engine.py` se necessário.
+Novo filtro: implemente `VideoFilter`, registre em `filters/registry.py` e, se precisar, hotkey em `core/keys.py`.
