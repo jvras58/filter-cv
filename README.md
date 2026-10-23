@@ -51,10 +51,16 @@ Ajustes de sensibilidade em `config/settings.py` (`gesture_stable_frames`, `min_
 
 ```
 main.py
-core/gesture_hub.py
-core/engine.py
+core/
+  engine.py
+  gesture_hub.py      # facade → core/gestures/
+  gestures/
+    hub.py              # MediaPipe + debounce
+    hand_pose.py        # ✌️, punho, pose de toque
+    eye_touch.py        # indicador perto do olho
+    types.py            # GestureSnapshot
 config/settings.py
 filters/
-utils/landmark_debug.py
+utils/
 assets/
 ```

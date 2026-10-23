@@ -1,4 +1,4 @@
-"""Atalhos de teclado (gestos são o fluxo principal)."""
+"""Atalhos de teclado globais (gestos são o fluxo principal do VSE)."""
 
 KEY_QUIT = ord("q")
 KEY_QUIT_UPPER = ord("Q")

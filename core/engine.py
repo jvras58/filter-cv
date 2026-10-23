@@ -1,4 +1,4 @@
-"""Virtual Stream Engine orchestrator and main loop."""
+"""Loop principal do VSE: captura → gestos → filtros → ações → saída virtual."""
 
 from __future__ import annotations
 
@@ -25,6 +25,8 @@ from utils.landmark_debug import draw_face_landmarks, draw_hand_landmarks
 
 
 class VirtualStreamEngine:
+    """Compõe hardware, gestos, filtros de vídeo e ações pós-processamento."""
+
     def __init__(self, config: StreamConfig | None = None) -> None:
         self._config = config or DEFAULT_STREAM_CONFIG
         self._show_landmarks = self._config.show_landmarks
@@ -53,6 +55,7 @@ class VirtualStreamEngine:
         self._shutdown_done = False
 
     def _handle_keys(self, key: int) -> bool:
+        """Teclas globais. Retorna False para encerrar o loop."""
         if key in (KEY_QUIT, KEY_QUIT_UPPER):
             return False
         if key in (KEY_DEBUG_LANDMARKS, KEY_DEBUG_LANDMARKS_UPPER):
@@ -64,6 +67,7 @@ class VirtualStreamEngine:
         return True
 
     def run(self) -> None:
+        """Executa o game loop até ``Q`` ou falha de captura."""
         print(
             "[VSE] Gestos: ✌️=sumir | punho=voltar | toque no olho=óculos on/off | "
             "D=landmarks | A=voltar (teclado) | Q=sair\n"
@@ -131,6 +135,7 @@ class VirtualStreamEngine:
             self.shutdown()
 
     def shutdown(self) -> None:
+        """Libera câmera, modelos e janelas (idempotente)."""
         if self._shutdown_done:
             return
         self._shutdown_done = True

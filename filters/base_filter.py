@@ -1,4 +1,4 @@
-"""Abstract video filter contract."""
+"""Contrato ABC para estágios do pipeline de vídeo."""
 
 from abc import ABC, abstractmethod
 
@@ -6,9 +6,11 @@ import numpy as np
 
 
 class VideoFilter(ABC):
+    """Um estágio: entrada opcional de teclado + transformação por frame."""
+
     @abstractmethod
     def handle_input(self, key: int) -> None:
-        """React to a key press not consumed by the orchestrator."""
+        """Reage a teclas não consumidas pelo orquestrador."""
 
     @abstractmethod
     def apply(
@@ -16,7 +18,7 @@ class VideoFilter(ABC):
         frame: np.ndarray,
         face_landmarks: list[tuple[float, float, float]] | None = None,
     ) -> np.ndarray:
-        """Return a BGR uint8 frame."""
+        """Retorna frame BGR ``uint8``."""
 
     def close(self) -> None:
-        """Release resources (override when the filter owns native handles)."""
+        """Libera recursos nativos (sobrescrever se necessário)."""

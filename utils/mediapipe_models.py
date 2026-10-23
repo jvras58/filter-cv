@@ -20,6 +20,7 @@ HAND_LANDMARKER_PATH = DEFAULT_ASSETS_DIR / "models" / "hand_landmarker.task"
 
 
 def _ensure_model(url: str, path: Path, label: str) -> Path:
+    """Baixa o arquivo ``.task`` se ainda não existir em disco."""
     if path.is_file():
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -29,8 +30,10 @@ def _ensure_model(url: str, path: Path, label: str) -> Path:
 
 
 def ensure_face_landmarker_model(path: Path = FACE_LANDMARKER_PATH) -> Path:
+    """Caminho local do modelo Face Landmarker (download sob demanda)."""
     return _ensure_model(FACE_LANDMARKER_URL, path, "Face Landmarker")
 
 
 def ensure_hand_landmarker_model(path: Path = HAND_LANDMARKER_PATH) -> Path:
+    """Caminho local do modelo Hand Landmarker (download sob demanda)."""
     return _ensure_model(HAND_LANDMARKER_URL, path, "Hand Landmarker")

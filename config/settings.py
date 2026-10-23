@@ -1,4 +1,4 @@
-"""Central configuration defaults (expandable to YAML later)."""
+"""Configuração central do stream (futuro: carregar de YAML)."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +10,8 @@ DEFAULT_OVERLAY_PATH = DEFAULT_ASSETS_DIR / "oculos_thug_life.png"
 
 @dataclass(frozen=True)
 class StreamConfig:
+    """Parâmetros de captura, preview, assets e sensibilidade de gestos."""
+
     device_id: int = 0
     width: int = 1280
     height: int = 720

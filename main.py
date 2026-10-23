@@ -4,6 +4,7 @@ from core.engine import VirtualStreamEngine
 
 
 def main() -> None:
+    """CLI: inicia o Virtual Stream Engine."""
     VirtualStreamEngine().run()
 
 

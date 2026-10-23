@@ -42,6 +42,7 @@ def draw_hand_landmarks(
     frame_bgr: np.ndarray,
     hands: list[list[tuple[float, float, float]]],
 ) -> None:
+    """Desenha conexões e pontos da mão no frame (mutação in-place)."""
     h, w = frame_bgr.shape[:2]
     for hand in hands:
         pts = _to_px(hand, w, h)
@@ -56,6 +57,7 @@ def draw_face_landmarks(
     face: list[tuple[float, float, float]],
     indices: tuple[int, ...] = (1, 33, 133, 263, 362, 61, 291),
 ) -> None:
+    """Destaca landmarks faciais usados por gestos e AR."""
     h, w = frame_bgr.shape[:2]
     for idx in indices:
         if idx >= len(face):

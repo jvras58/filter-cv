@@ -1,4 +1,4 @@
-"""AR overlay — usa landmarks de rosto já detectados no GestureHub."""
+"""Overlay AR de óculos alinhado a landmarks de rosto (já detectados no hub)."""
 
 from __future__ import annotations
 
@@ -23,6 +23,8 @@ def _landmark_xy(
 
 
 class FaceMeshFilter(VideoFilter):
+    """Desenha PNG BGRA escalado/rotacionado entre os olhos."""
+
     def __init__(self, overlay_path: str) -> None:
         self._overlay_asset = load_bgra_asset(overlay_path)
 
@@ -34,6 +36,7 @@ class FaceMeshFilter(VideoFilter):
         frame: np.ndarray,
         face_landmarks: list[tuple[float, float, float]] | None = None,
     ) -> np.ndarray:
+        """Aplica óculos se ``face_landmarks`` estiver presente."""
         if not face_landmarks:
             return frame
 

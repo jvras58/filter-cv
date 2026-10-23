@@ -21,7 +21,7 @@ package-mode = false
 vse = "main:main"
 
 [tool.pyright]
-include = ["main.py", "core", "config", "filters", "utils"]
+include = ["main.py", "core", "core/gestures", "config", "filters", "utils"]
 exclude = [".venv", "scripts", "docs"]
 venvPath = "."
 venv = ".venv"

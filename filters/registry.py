@@ -1,4 +1,4 @@
-"""Registro de filtros — adicione novos módulos aqui sem alterar captura/saída."""
+"""Registro de filtros — adicione factories aqui sem alterar captura/saída."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from filters.identity_filter import IdentityFilter
 
 @dataclass(frozen=True)
 class FilterFactoryContext:
+    """Dependências passadas ao construir cada filtro."""
+
     config: StreamConfig
 
 
@@ -34,4 +36,5 @@ FILTER_FACTORIES: dict[str, FilterFactory] = {
 
 
 def build_filters(ctx: FilterFactoryContext) -> dict[str, VideoFilter]:
+    """Instancia todos os filtros registrados em ``FILTER_FACTORIES``."""
     return {name: factory(ctx) for name, factory in FILTER_FACTORIES.items()}

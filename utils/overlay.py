@@ -7,6 +7,7 @@ import numpy as np
 
 
 def load_bgra_asset(path: str) -> np.ndarray:
+    """Carrega PNG (ou similar) garantindo canal alpha."""
     image = cv2.imread(path, cv2.IMREAD_UNCHANGED)
     if image is None:
         raise FileNotFoundError(f"Overlay asset not found: {path}")
@@ -22,6 +23,7 @@ def transform_overlay(
     target_width: float,
     angle_deg: float,
 ) -> np.ndarray:
+    """Redimensiona pela largura alvo e rotaciona em torno do centro."""
     if target_width <= 1:
         return asset_bgra
 
@@ -49,6 +51,7 @@ def blend_bgra_on_bgr(
     anchor_x: int,
     anchor_y: int,
 ) -> np.ndarray:
+    """Alpha-composite in-place; âncora = centro do overlay."""
     frame_h, frame_w = frame_bgr.shape[:2]
     oh, ow = overlay_bgra.shape[:2]
 

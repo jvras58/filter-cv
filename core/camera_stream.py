@@ -9,6 +9,8 @@ import numpy as np
 
 
 class CameraStream:
+    """Encapsula ``cv2.VideoCapture`` com resolução/FPS fixos."""
+
     def __init__(
         self,
         device_id: int = 0,
@@ -16,6 +18,7 @@ class CameraStream:
         height: int = 720,
         fps: int = 30,
     ) -> None:
+        """Abre o dispositivo e aplica largura, altura e FPS desejados."""
         self._capture = cv2.VideoCapture(device_id)
         if not self._capture.isOpened():
             raise RuntimeError(f"Could not open camera device {device_id}")
@@ -27,6 +30,7 @@ class CameraStream:
         self._height = height
 
     def read_frame(self) -> np.ndarray | None:
+        """Lê um frame BGR ou ``None`` se a captura falhar."""
         ok, frame = self._capture.read()
         return frame if ok else None
 
@@ -35,7 +39,7 @@ class CameraStream:
         seconds: float = 2.0,
         preview_window: str | None = "VSE — capture background",
     ) -> np.ndarray:
-        """Guide the user to leave the frame, then grab a reference background."""
+        """Aguarda ``seconds`` com o usuário fora do quadro e retorna o último frame."""
         print(
             f"\n[VSE] Saia do quadro da webcam. "
             f"Capturando fundo em {seconds:.0f}s...\n"
@@ -58,8 +62,9 @@ class CameraStream:
         if last_frame is None:
             raise RuntimeError("Failed to capture background frame from camera")
 
-        print("[VSE] Fundo capturado. Volte ao quadro e use 1/2/3 para filtros.\n")
+        print("[VSE] Fundo capturado. Volte ao quadro — gestos prontos.\n")
         return last_frame
 
     def release(self) -> None:
+        """Libera o handle da webcam."""
         self._capture.release()
