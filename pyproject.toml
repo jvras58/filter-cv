@@ -13,16 +13,25 @@ dependencies = [
     "mediapipe (>=1.1.1,<2.0.0)"
 ]
 
-
-[tool.poetry]
-package-mode = false
+[project.scripts]
+vse = "vse.__main__:main"
 
 [tool.poetry.scripts]
-vse = "main:main"
+vse = "vse.__main__:main"
+
+[tool.poetry]
+packages = [
+    { include = "vse" },
+    { include = "core" },
+    { include = "config" },
+    { include = "filters" },
+    { include = "utils" },
+]
 
 [tool.pyright]
 include = [
   "main.py",
+  "vse",
   "core",
   "core/gestures",
   "config",
